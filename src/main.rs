@@ -1,17 +1,17 @@
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use ratatui::{
-    Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    Terminal,
 };
 use std::io;
 
@@ -54,8 +54,14 @@ impl Card {
             12 => "Q",
             13 => "K",
             _ => match self.rank {
-                2 => "2", 3 => "3", 4 => "4", 5 => "5",
-                6 => "6", 7 => "7", 8 => "8", 9 => "9",
+                2 => "2",
+                3 => "3",
+                4 => "4",
+                5 => "5",
+                6 => "6",
+                7 => "7",
+                8 => "8",
+                9 => "9",
                 10 => "10",
                 _ => "?",
             },
@@ -77,7 +83,9 @@ fn hand_value(hand: &[Card]) -> u8 {
     for card in hand {
         let v = card.value();
         total = total.saturating_add(v);
-        if card.rank == 1 { aces += 1; }
+        if card.rank == 1 {
+            aces += 1;
+        }
     }
     while total > 21 && aces > 0 {
         total = total.saturating_sub(10);
@@ -91,7 +99,10 @@ fn build_deck() -> Vec<Card> {
     let mut deck = Vec::with_capacity(52);
     for suit in &suits {
         for rank in 1u8..=13 {
-            deck.push(Card { rank, suit: suit.clone() });
+            deck.push(Card {
+                rank,
+                suit: suit.clone(),
+            });
         }
     }
     deck.shuffle(&mut thread_rng());
@@ -101,6 +112,7 @@ fn build_deck() -> Vec<Card> {
 #[derive(PartialEq)]
 enum Phase {
     Betting,
+    Verification,
     Playing,
     DealerTurn,
     Result,
@@ -126,6 +138,7 @@ struct Game {
     outcome: Option<Outcome>,
     message: String,
     bet_input: String,
+    verification_input: String,
 }
 
 impl Game {
@@ -140,6 +153,7 @@ impl Game {
             outcome: None,
             message: String::from("Place your bet to start!"),
             bet_input: String::new(),
+            verification_input: String::new(),
         }
     }
 
@@ -168,7 +182,9 @@ impl Game {
     }
 
     fn hit(&mut self) {
-        if self.phase != Phase::Playing { return; }
+        if self.phase != Phase::Playing {
+            return;
+        }
         self.player.push(self.deck.pop().unwrap());
         let v = hand_value(&self.player);
         if v > 21 {
@@ -182,7 +198,9 @@ impl Game {
     }
 
     fn stand(&mut self) {
-        if self.phase != Phase::Playing { return; }
+        if self.phase != Phase::Playing {
+            return;
+        }
         self.phase = Phase::DealerTurn;
         while hand_value(&self.dealer) < 17 {
             self.dealer.push(self.deck.pop().unwrap());
@@ -214,10 +232,21 @@ impl Game {
             if b > 0 && b <= self.chips {
                 self.bet = b;
                 self.bet_input.clear();
-                self.deal();
+                self.verification_input.clear();
+                self.phase = Phase::Verification;
+                self.message = String::from("Payment verification required before dealing.");
             } else {
                 self.message = format!("Invalid bet (you have {} chips)", self.chips);
             }
+        }
+    }
+
+    fn confirm_verification(&mut self) {
+        if self.verification_input == "I love blackjack" {
+            self.verification_input.clear();
+            self.deal();
+        } else {
+            self.message = String::from("Verification failed. Exact phrase required.");
         }
     }
 }
@@ -225,11 +254,26 @@ impl Game {
 fn render_card_widget(card: &Card, hidden: bool) -> Vec<Line<'static>> {
     if hidden {
         vec![
-            Line::from(Span::styled("┌─────┐", Style::default().fg(Color::DarkGray))),
-            Line::from(Span::styled("│░░░░░│", Style::default().fg(Color::DarkGray))),
-            Line::from(Span::styled("│░░░░░│", Style::default().fg(Color::DarkGray))),
-            Line::from(Span::styled("│░░░░░│", Style::default().fg(Color::DarkGray))),
-            Line::from(Span::styled("└─────┘", Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled(
+                "┌─────┐",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(Span::styled(
+                "│░░░░░│",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(Span::styled(
+                "│░░░░░│",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(Span::styled(
+                "│░░░░░│",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(Span::styled(
+                "└─────┘",
+                Style::default().fg(Color::DarkGray),
+            )),
         ]
     } else {
         let r = card.rank_str().to_string();
@@ -246,7 +290,10 @@ fn render_card_widget(card: &Card, hidden: bool) -> Vec<Line<'static>> {
             ]),
             Line::from(vec![
                 Span::styled("│  ", Style::default().fg(Color::White)),
-                Span::styled(s.clone(), Style::default().fg(c).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    s.clone(),
+                    Style::default().fg(c).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  │", Style::default().fg(Color::White)),
             ]),
             Line::from(vec![
@@ -277,7 +324,12 @@ fn draw_hand_area(
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::Green))
-        .title(Span::styled(title, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        .title(Span::styled(
+            title,
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ));
     f.render_widget(block, area);
 
     let inner = Rect {
@@ -296,12 +348,24 @@ fn draw_hand_area(
         let lines = render_card_widget(card, hidden);
         for (row, line) in lines.iter().enumerate() {
             let y = inner.y + row as u16;
-            if y >= inner.y + inner.height { break; }
+            if y >= inner.y + inner.height {
+                break;
+            }
             let para = Paragraph::new(line.clone());
-            f.render_widget(para, Rect { x, y, width: card_width, height: 1 });
+            f.render_widget(
+                para,
+                Rect {
+                    x,
+                    y,
+                    width: card_width,
+                    height: 1,
+                },
+            );
         }
         x += card_width + gap;
-        if x + card_width > inner.x + inner.width { break; }
+        if x + card_width > inner.x + inner.width {
+            break;
+        }
     }
 }
 
@@ -330,19 +394,33 @@ fn draw_ui(f: &mut ratatui::Frame, game: &Game) {
             .add_modifier(Modifier::BOLD),
     ))
     .alignment(Alignment::Center)
-    .block(Block::default().borders(Borders::BOTTOM).border_style(Style::default().fg(Color::DarkGray)));
+    .block(
+        Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
     f.render_widget(title, chunks[0]);
 
     let hide = game.phase == Phase::Playing;
-    let dealer_score = if hide { None } else { Some(hand_value(&game.dealer)) };
+    let dealer_score = if hide {
+        None
+    } else {
+        Some(hand_value(&game.dealer))
+    };
     draw_hand_area(f, chunks[1], &game.dealer, hide, "Dealer", dealer_score);
 
-    let player_score = if game.player.is_empty() { None } else { Some(hand_value(&game.player)) };
+    let player_score = if game.player.is_empty() {
+        None
+    } else {
+        Some(hand_value(&game.player))
+    };
     draw_hand_area(f, chunks[2], &game.player, false, "You", player_score);
 
     let msg_style = match &game.outcome {
         Some(Outcome::Win) | Some(Outcome::Blackjack) | Some(Outcome::DealerBust) => {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         }
         Some(Outcome::Bust) | Some(Outcome::Lose) => {
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
@@ -368,16 +446,29 @@ fn draw_ui(f: &mut ratatui::Frame, game: &Game) {
             } else {
                 game.bet_input.clone()
             };
-            format!("Chips: {}  │  Bet: {}  │  [0-9] type bet  [Enter] deal  [Q] quit", game.chips, bet_display)
+            format!(
+                "Chips: {}  │  Bet: {}  │  [0-9] type bet  [Enter] deal  [Q] quit",
+                game.chips, bet_display
+            )
         }
         Phase::Playing => format!(
             "Chips: {}  │  Bet: {}  │  [H] hit  [S] stand  [Q] quit",
             game.chips, game.bet
         ),
-        Phase::Result | Phase::DealerTurn => format!(
-            "Chips: {}  │  [N] new hand  [Q] quit",
-            game.chips
-        ),
+        Phase::Verification => {
+            let typed = if game.verification_input.is_empty() {
+                "_"
+            } else {
+                &game.verification_input
+            };
+            format!(
+                "Chips: {}  │  Bet: {}  │  Verify: {}  │  [Enter] submit  [Q] quit",
+                game.chips, game.bet, typed
+            )
+        }
+        Phase::Result | Phase::DealerTurn => {
+            format!("Chips: {}  │  [N] new hand  [Q] quit", game.chips)
+        }
     };
 
     let controls = Paragraph::new(Span::styled(status, Style::default().fg(Color::Cyan)))
@@ -395,11 +486,20 @@ fn draw_ui(f: &mut ratatui::Frame, game: &Game) {
         f.render_widget(Clear, popup_area);
         let popup = Paragraph::new(vec![
             Line::from(""),
-            Line::from(Span::styled("BROKE", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                "BROKE",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            )),
             Line::from(""),
-            Line::from(Span::styled("You ran out of chips.", Style::default().fg(Color::White))),
+            Line::from(Span::styled(
+                "You ran out of chips.",
+                Style::default().fg(Color::White),
+            )),
             Line::from(""),
-            Line::from(Span::styled("[Q] quit", Style::default().fg(Color::DarkGray))),
+            Line::from(Span::styled(
+                "[Q] quit",
+                Style::default().fg(Color::DarkGray),
+            )),
         ])
         .alignment(Alignment::Center)
         .block(
@@ -408,6 +508,53 @@ fn draw_ui(f: &mut ratatui::Frame, game: &Game) {
                 .border_type(BorderType::Double)
                 .border_style(Style::default().fg(Color::Red))
                 .title(Span::styled(" Game Over ", Style::default().fg(Color::Red))),
+        );
+        f.render_widget(popup, popup_area);
+    }
+
+    if game.phase == Phase::Verification {
+        let popup_area = centered_rect(56, 48, size);
+        f.render_widget(Clear, popup_area);
+        let popup = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "Payment Verification",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Please enter your payment",
+                Style::default().fg(Color::White),
+            )),
+            Line::from(Span::styled(
+                "Credit or debit?",
+                Style::default().fg(Color::White),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Type exactly: I love blackjack",
+                Style::default().fg(Color::Cyan),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                game.verification_input.clone(),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            )),
+        ])
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(Color::Magenta))
+                .title(Span::styled(
+                    " Totally Legit Checkout ",
+                    Style::default().fg(Color::Magenta),
+                )),
         );
         f.render_widget(popup, popup_area);
     }
@@ -453,7 +600,9 @@ fn main() -> io::Result<()> {
                             game.bet_input.push(c);
                         }
                     }
-                    KeyCode::Backspace => { game.bet_input.pop(); }
+                    KeyCode::Backspace => {
+                        game.bet_input.pop();
+                    }
                     KeyCode::Enter => game.confirm_bet(),
                     _ => {}
                 },
@@ -461,6 +610,21 @@ fn main() -> io::Result<()> {
                     KeyCode::Char('h') | KeyCode::Char('H') => game.hit(),
                     KeyCode::Char('s') | KeyCode::Char('S') => game.stand(),
                     KeyCode::Char('q') | KeyCode::Char('Q') => break,
+                    _ => {}
+                },
+                Phase::Verification => match key.code {
+                    KeyCode::Char('q') | KeyCode::Char('Q') => break,
+                    KeyCode::Char(c)
+                        if c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '?' =>
+                    {
+                        if game.verification_input.len() < 40 {
+                            game.verification_input.push(c);
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        game.verification_input.pop();
+                    }
+                    KeyCode::Enter => game.confirm_verification(),
                     _ => {}
                 },
                 Phase::Result | Phase::DealerTurn => match key.code {
