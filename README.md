@@ -13,9 +13,9 @@ terminal blackjack built with [ratatui](https://github.com/ratatui-org/ratatui)
 ## install
 
 ```bash
-git clone https://github.com/SpeedyMcMichael/blackjack-rs.git
+git clone https://github.com/SpeedyMcMichael/rs-blackjack.git
 # run
-cd blackjack-rs
+cd rs-blackjack
 cargo run --release
 ```
 or with the wrapper
