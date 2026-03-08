@@ -616,9 +616,7 @@ fn main() -> io::Result<()> {
                 Phase::Betting => match key.code {
                     KeyCode::Char('q') | KeyCode::Char('Q') => break,
                     KeyCode::Char(c) if c.is_ascii_digit() => {
-                        if game.bet_input.len() < 5 {
-                            game.bet_input.push(c);
-                        }
+                        game.bet_input.push(c);
                     }
                     KeyCode::Backspace => {
                         game.bet_input.pop();
