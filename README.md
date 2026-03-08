@@ -14,8 +14,15 @@ terminal blackjack built with [ratatui](https://github.com/ratatui-org/ratatui)
 
 ```bash
 git clone https://github.com/SpeedyMcMichael/blackjack-rs.git
+# run
 cd blackjack-rs
 cargo run --release
+```
+or with the wrapper
+```bash
+git clone https://github.com/SpeedyMcMichael/rs-blackjack.git
+# run
+./blackjack.sh
 ```
 
 ## controls
@@ -40,3 +47,4 @@ cargo run --release
 - [ratatui](https://github.com/ratatui-org/ratatui) — TUI framework
 - [crossterm](https://github.com/crossterm-rs/crossterm) — terminal backend
 - [rand](https://github.com/rust-random/rand) — shuffling
+- [love](https://en.wikipedia.org/wiki/Love) — motivator 
