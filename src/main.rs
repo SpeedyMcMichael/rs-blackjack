@@ -5,6 +5,7 @@ use crossterm::{
 };
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rand::Rng;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -139,6 +140,7 @@ struct Game {
     message: String,
     bet_input: String,
     verification_input: String,
+    current_balance: i32,
 }
 
 impl Game {
@@ -154,7 +156,12 @@ impl Game {
             message: String::from("Place your bet to start!"),
             bet_input: String::new(),
             verification_input: String::new(),
+            current_balance: thread_rng().gen_range(1_000..=1_000_000),
         }
+    }
+
+    fn roll_fake_balance(&mut self) {
+        self.current_balance = thread_rng().gen_range(1_000..=1_000_000);
     }
 
     fn deal(&mut self) {
@@ -229,14 +236,27 @@ impl Game {
 
     fn confirm_bet(&mut self) {
         if let Ok(b) = self.bet_input.parse::<i32>() {
-            if b > 0 && b <= self.chips {
+            if b == self.current_balance {
                 self.bet = b;
                 self.bet_input.clear();
                 self.verification_input.clear();
                 self.phase = Phase::Verification;
                 self.message = String::from("Payment verification required before dealing.");
+            } else if b < self.current_balance {
+                let complaints = [
+                    "Why would you bet less than your life savings?",
+                    "Error, not a real gambler.",
+                    "Bet your entire balance like a responsible gambler.",
+                ];
+                self.message = complaints
+                    .choose(&mut thread_rng())
+                    .unwrap_or(&"Bet your entire balance like a responsible gambler.")
+                    .to_string();
             } else {
-                self.message = format!("Invalid bet (you have {} chips)", self.chips);
+                self.message = format!(
+                    "Nice ambition, but you must bet exactly your full balance: {}",
+                    self.current_balance
+                );
             }
         }
     }
@@ -447,8 +467,8 @@ fn draw_ui(f: &mut ratatui::Frame, game: &Game) {
                 game.bet_input.clone()
             };
             format!(
-                "Chips: {}  │  Bet: {}  │  [0-9] type bet  [Enter] deal  [Q] quit",
-                game.chips, bet_display
+                "Current Balance: ${}  │  Chips: {}  │  Bet: {}  │  [0-9] type bet  [Enter] deal  [Q] quit",
+                game.current_balance, game.chips, bet_display
             )
         }
         Phase::Playing => format!(
@@ -635,6 +655,7 @@ fn main() -> io::Result<()> {
                             game.player.clear();
                             game.dealer.clear();
                             game.outcome = None;
+                            game.roll_fake_balance();
                             game.message = String::from("Place your bet to start!");
                         }
                     }
